@@ -73,9 +73,9 @@ install_game() {
     # Install or update the game
     echo "[install_game] Installing or updating the game..."
     bash "steamcmd" +force_install_dir "${SQUAD_INSTALL_DIR}" \
-                    +login anonymous \
-                    +app_update "${SQUAD_APP_ID}" \
-                    +quit
+        +login anonymous \
+        +app_update "${SQUAD_APP_ID}" \
+        +quit
 
     # Restore the configuration directory from the backup
     if [ -d "$backup_dir" ]; then
@@ -91,6 +91,52 @@ install_game() {
     fi
 }
 
+setup_mod_symlinks() {
+    local mods_dir="${SQUAD_INSTALL_DIR}/steamapps/workshop/content/${SQUAD_WORKSHOP_APP_ID}"
+    local target_dir="${SQUAD_INSTALL_DIR}/SquadGame/Plugins/Mods"
+
+    for symlink in "${target_dir}"/*; do
+        # Check if it's a symlink
+        if [ -L "$symlink" ]; then
+            # Get the actual path the symlink points to
+            linked_target=$(readlink "$symlink")
+
+            # Check if it points to a folder inside mods_dir
+            if [[ "$linked_target" == "${mods_dir}"/* ]]; then
+                echo "[setup_mod_symlinks] Removing symlink: $symlink"
+                rm "$symlink"
+            fi
+        fi
+    done
+
+    # Create new symlinks from mods_dir to target_dir
+    for mod_folder in "${mods_dir}"/*; do
+        if [ -d "$mod_folder" ]; then
+            mod_name=$(basename "$mod_folder")
+            target_symlink="${target_dir}/${mod_name}"
+
+            echo "[setup_mod_symlinks] Creating symlink for $mod_folder at $target_symlink"
+            ln -s "$mod_folder" "$target_symlink"
+        fi
+    done
+}
+
+# Arguments:
+#   $1: mod_ids
+install_mods() {
+    for mod_id in $1; do
+        # Install or update the mod
+        echo "[install_mods:$mod_id] Installing the mod..."
+        bash "steamcmd" +force_install_dir "${SQUAD_INSTALL_DIR}" \
+            +login anonymous \
+            +workshop_download_item "${SQUAD_WORKSHOP_APP_ID}" $mod_id \
+            +quit
+        echo "[install_mods:$mod_id] Success"
+    done
+
+    setup_mod_symlinks
+}
+
 # just for good measure
 chown ${USER}:${USER} ${SQUAD_INSTALL_DIR}
 
@@ -99,7 +145,7 @@ if [ -e "${SQUAD_INSTALL_DIR}/steamapps/appmanifest_${SQUAD_APP_ID}.acf" ]; then
     echo "[entry] found Squad appmanifest, checking for update"
 
     should_update ${SQUAD_APP_ID} "${SQUAD_INSTALL_DIR}/steamapps/appmanifest_${SQUAD_APP_ID}.acf"
-    
+
     if [ $? -eq 1 ]; then
         echo "[entry] update needed, installing..."
         install_game
@@ -116,16 +162,15 @@ fi
 # Change rcon port on first launch, because the default config overwrites the commandline parameter (you can comment this out if it has done it's purpose)
 sed -i -e 's/Port=21114/'"Port=${RCONPORT}"'/g' "${SQUAD_INSTALL_DIR}/SquadGame/ServerConfig/Rcon.cfg"
 
-# TODO:
-# check if mods are installed
-# if so check their installed build id and update if necessary
-# else install them
+SQUAD_MOD_IDS=${SQUAD_MOD_IDS}
+MOD_IDS=$(echo "${SQUAD_MOD_IDS}" | tr -d '()"\"' | tr ',' ' ')
+install_mods $MOD_IDS
 
 bash "${SQUAD_INSTALL_DIR}/SquadGameServer.sh" \
-			Port="${PORT}" \
-			QueryPort="${QUERYPORT}" \
-			RCONPORT="${RCONPORT}" \
-			beaconport="${beaconport}" \
-			FIXEDMAXPLAYERS="${FIXEDMAXPLAYERS}" \
-			FIXEDMAXTICKRATE="${FIXEDMAXTICKRATE}" \
-			RANDOM="${RANDOM}"
+    Port="${PORT}" \
+    QueryPort="${QUERYPORT}" \
+    RCONPORT="${RCONPORT}" \
+    beaconport="${beaconport}" \
+    FIXEDMAXPLAYERS="${FIXEDMAXPLAYERS}" \
+    FIXEDMAXTICKRATE="${FIXEDMAXTICKRATE}" \
+    RANDOM="${RANDOM}"
