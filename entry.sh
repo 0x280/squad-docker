@@ -18,7 +18,7 @@ should_update() {
         return 1
     fi
 
-    echo "[should_update] fetching remote buildid"
+    echo "[should_update] fetching remote buildid..."
 
     # Fetch remote buildid using steamcmd
     local output
@@ -137,6 +137,35 @@ install_mods() {
     setup_mod_symlinks
 }
 
+# Arguments:
+#   $1: mod_ids
+fix_windows_only_mods() {
+    local mods_dir="${SQUAD_INSTALL_DIR}/steamapps/workshop/content/${SQUAD_WORKSHOP_APP_ID}"
+
+    for mod_id in $1; do
+        pak_dir=$(find "$mods_dir/$mod_id" -type d -path "*/Content/Paks" -print -quit)
+
+        if [ -z "$pak_dir" ]; then
+            echo "[fix_windows_only_mods:$mod_id] Couldn't find Content/Paks dir for windows mod"
+        else
+            echo "[fix_windows_only_mods:$mod_id] Found the following Content/Paks directory: $pak_dir"
+
+            windows_dir="$pak_dir/WindowsNoEditor"
+            linux_dir="$pak_dir/LinuxServer"
+
+            if [ -d "$windows_dir" ]; then
+                if [ -d "$linux_dir" ]; then
+                    rm -rf $linux_dir
+                fi
+
+                mv $windows_dir $linux_dir
+
+                echo "[fix_windows_only_mods:$mod_id] patched successfully"
+            fi
+        fi
+    done
+}
+
 # just for good measure
 chown ${USER}:${USER} ${SQUAD_INSTALL_DIR}
 
@@ -162,9 +191,12 @@ fi
 # Change rcon port on first launch, because the default config overwrites the commandline parameter (you can comment this out if it has done it's purpose)
 sed -i -e 's/Port=21114/'"Port=${RCONPORT}"'/g' "${SQUAD_INSTALL_DIR}/SquadGame/ServerConfig/Rcon.cfg"
 
-SQUAD_MOD_IDS=${SQUAD_MOD_IDS}
 MOD_IDS=$(echo "${SQUAD_MOD_IDS}" | tr -d '()"\"' | tr ',' ' ')
 install_mods $MOD_IDS
+
+WINDOWS_ONLY_MOD_IDS=$(echo "${SQUAD_WINDOWS_ONLY_MOD_IDS}" | tr -d '()"\"' | tr ',' ' ')
+install_mods $WINDOWS_ONLY_MOD_IDS
+fix_windows_only_mods $WINDOWS_ONLY_MOD_IDS
 
 bash "${SQUAD_INSTALL_DIR}/SquadGameServer.sh" \
     Port="${PORT}" \

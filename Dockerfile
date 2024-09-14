@@ -8,6 +8,8 @@ ENV SQUAD_INSTALL_DIR="${HOME}/squad-dedicated"
 ENV SQUAD_WORKSHOP_APP_ID=393380
 ENV SQUAD_MOD_DIR="${SQUAD_INSTALL_DIR}/SquadGame/Plugins/Mods"
 ENV SQUAD_MOD_IDS="()"
+# These are mods that traditionally only support windows, we "fix" this using a small workaround
+ENV SQUAD_WINDOWS_ONLY_MOD_IDS="()"
 
 RUN groupadd -g 1000 ${USER} \
     && useradd -m -u 1000 -g ${USER} ${USER}
